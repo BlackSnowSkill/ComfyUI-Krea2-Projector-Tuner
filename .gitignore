@@ -3,3 +3,5 @@ __pycache__/
 *.zip
 .DS_Store
 presets/.initialized
+presets/*.json
+!presets/template_preset.json.example

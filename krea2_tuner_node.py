@@ -106,13 +106,14 @@ def load_all_presets():
     return loaded
 
 # Register API Route for frontend preset value retrieval
-@PromptServer.instance.routes.get("/krea2_tuner/presets")
-async def get_presets_api(request):
-    current_presets = load_all_presets()
-    serializable = {}
-    for k, v in current_presets.items():
-        serializable[k] = v if v is not None else [0.0] * 12
-    return web.json_response(serializable)
+if hasattr(PromptServer, "instance") and PromptServer.instance is not None:
+    @PromptServer.instance.routes.get("/krea2_tuner/presets")
+    async def get_presets_api(request):
+        current_presets = load_all_presets()
+        serializable = {}
+        for k, v in current_presets.items():
+            serializable[k] = v if v is not None else [0.0] * 12
+        return web.json_response(serializable)
 
 
 class Krea2ProjectorTuner:
