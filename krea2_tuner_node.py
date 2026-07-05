@@ -5,54 +5,90 @@ Developed by: blacksnowskill (BSS)
 krea2_tuner_node.py
 Custom node for Krea2 Projector Tuning in ComfyUI.
 Patches the txtfusion.projector layer in-memory using sliders or presets.
+Includes community presets JSON folder scanning and high-precision controls.
 """
 
+import os
+import json
 import logging
 import torch
+from server import PromptServer
+from aiohttp import web
 
 logger = logging.getLogger("KREA2_TUNER")
 
-# Preset difference vectors (12 dimensions corresponding to CLIP layers)
-# Calculated directly from the tuner.py math
-PRESETS = {
+# Path to community presets folder
+presets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "presets")
+os.makedirs(presets_dir, exist_ok=True)
+
+# Create template JSON in presets folder if it is empty
+template_path = os.path.join(presets_dir, "template_preset.json.example")
+if not os.path.exists(template_path):
+    try:
+        with open(template_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "name": "Community_Bypass_Example",
+                "knobs": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.7, -1.023438, -1.78125, -1.21875, 0.0]
+            }, f, indent=4)
+    except Exception as e:
+        logger.error(f"[Krea2Tuner] Failed to create template preset: {e}")
+
+# Built-in presets
+BUILTIN_PRESETS = {
     "custom": None,
     "Strongx3_wl7": [
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
         -0.700000,           # Knob 7 (minor decensor)
-        -0.511719 * 2.0,     # Knob 8 (3x multiplier = diff is 2x)
-        -0.890625 * 2.0,     # Knob 9 (3x multiplier = diff is 2x)
-        -0.609375 * 2.0,     # Knob 10 (3x multiplier = diff is 2x)
+        -1.023438,           # Knob 8 (3x multiplier = diff is 2x)
+        -1.781250,           # Knob 9 (3x multiplier = diff is 2x)
+        -1.218750,           # Knob 10 (3x multiplier = diff is 2x)
         0.0
     ],
     "Strong 2.5": [
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        -0.511719 * 1.5,     # Knob 8
-        -0.890625 * 1.5,     # Knob 9
-        -0.609375 * 1.5,     # Knob 10
-        0.0
-    ],
-    "Anatomy Opt": [
-        0.0, 0.0,
-        0.371094 * 0.25,     # Knob 2
-        0.503906 * 0.25,     # Knob 3
-        0.707031 * 0.25,     # Knob 4
-        0.394531 * 0.25,     # Knob 5
-        0.398438 * 0.25,     # Knob 6
-        -1.437500 * 0.3,     # Knob 7
-        -0.511719 * 0.3,     # Knob 8
-        -0.890625 * 0.3,     # Knob 9
-        -0.609375 * 0.3,     # Knob 10
+        -0.767579,           # Knob 8
+        -1.335938,           # Knob 9
+        -0.914063,           # Knob 10
         0.0
     ],
     "Clean Bypass": [
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        -1.437500 * 0.6,     # Knob 7
-        -0.511719 * 0.6,     # Knob 8
-        -0.890625 * 0.6,     # Knob 9
-        -0.609375 * 0.6,     # Knob 10
+        -0.862500,           # Knob 7
+        -0.307031,           # Knob 8
+        -0.534375,           # Knob 9
+        -0.365625,           # Knob 10
         0.0
     ]
 }
+
+def load_all_presets():
+    """Loads built-in and community presets from presets/ directory."""
+    loaded = dict(BUILTIN_PRESETS)
+    if os.path.exists(presets_dir):
+        for f in os.listdir(presets_dir):
+            if f.endswith(".json"):
+                path = os.path.join(presets_dir, f)
+                try:
+                    with open(path, "r", encoding="utf-8") as file:
+                        data = json.load(file)
+                        if isinstance(data, dict) and "name" in data and "knobs" in data:
+                            name = data["name"]
+                            knobs = data["knobs"]
+                            if isinstance(knobs, list) and len(knobs) == 12:
+                                loaded[name] = [float(x) for x in knobs]
+                                logger.info(f"[Krea2Tuner] Loaded community preset: {name}")
+                except Exception as e:
+                    logger.error(f"[Krea2Tuner] Failed to load preset file {f}: {e}")
+    return loaded
+
+# Register API Route for frontend preset value retrieval
+@PromptServer.instance.routes.get("/krea2_tuner/presets")
+async def get_presets_api(request):
+    current_presets = load_all_presets()
+    serializable = {}
+    for k, v in current_presets.items():
+        serializable[k] = v if v is not None else [0.0] * 12
+    return web.json_response(serializable)
 
 
 class Krea2ProjectorTuner:
@@ -63,22 +99,25 @@ class Krea2ProjectorTuner:
     
     @classmethod
     def INPUT_TYPES(s):
+        # Dynamically fetch presets list at startup
+        presets_dict = load_all_presets()
         return {
             "required": {
                 "model": ("MODEL",),
-                "preset": (list(PRESETS.keys()), {"default": "Strongx3_wl7"}),
-                "knob_0": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_1": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_2": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_3": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_4": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_5": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_6": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_7": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_8": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_9": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_10": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
-                "knob_11": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "preset": (list(presets_dict.keys()), {"default": "Strongx3_wl7"}),
+                # Precision step set to 0.000001 for extremely fine tuning
+                "knob_0": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_1": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_2": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_3": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_4": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_5": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_6": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_7": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_8": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_9": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_10": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "knob_11": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
             }
         }
     
@@ -97,9 +136,12 @@ class Krea2ProjectorTuner:
         # 1. Clone the model patcher to avoid mutating original globally
         m = model.clone()
         
-        # 2. Select values from preset or sliders
+        # 2. Reload presets dynamically in case community ones changed
+        presets_dict = load_all_presets()
+
+        # 3. Select values from preset or sliders
         if preset != "custom":
-            diff_list = PRESETS[preset]
+            diff_list = presets_dict.get(preset, BUILTIN_PRESETS["Strongx3_wl7"])
             logger.info(f"[Krea2Tuner] Applying preset: {preset}")
         else:
             diff_list = [
@@ -108,8 +150,7 @@ class Krea2ProjectorTuner:
             ]
             logger.info(f"[Krea2Tuner] Applying custom manual slider values: {diff_list}")
 
-        # 3. Locate the parameter key inside the model's state dict
-        # ComfyUI ModelPatcher expects the key exactly as it appears in m.model.state_dict()
+        # 4. Locate the parameter key inside the model's state dict
         sd = m.model.state_dict()
         
         target_key = None
@@ -128,7 +169,7 @@ class Krea2ProjectorTuner:
         dtype = param.dtype
         shape = param.shape
 
-        # 4. Construct the difference tensor matching the target parameter shape
+        # 5. Construct the difference tensor matching the target parameter shape
         diff_tensor = torch.tensor(diff_list, device=device, dtype=dtype)
         
         # Reshape to match the parameter's shape (usually [1, 12] or [12])
@@ -138,8 +179,7 @@ class Krea2ProjectorTuner:
             logger.warning(f"[Krea2Tuner] Reshape failed: {e}. Trying to match shape directly.")
             diff_tensor = diff_tensor.reshape(shape)
 
-        # 5. Inject the patch into ComfyUI's model patcher
-        # Format: {key: (diff_tensor,)}
+        # 6. Inject the patch into ComfyUI's model patcher
         m.add_patches({target_key: (diff_tensor,)}, 1.0, 1.0)
         logger.info(f"[Krea2Tuner] In-memory patch successfully applied to '{target_key}'")
 
