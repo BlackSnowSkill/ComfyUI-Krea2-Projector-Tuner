@@ -1,5 +1,7 @@
 import { app } from "../../scripts/app.js";
 
+console.log("[Krea2Tuner] Loading frontend extension...");
+
 app.registerExtension({
     name: "Krea2Tuner.Extension",
     nodeCreated(node) {
@@ -17,9 +19,12 @@ app.registerExtension({
                     if (knobWidget) {
                         if (!knobWidget.options) knobWidget.options = {};
                         knobWidget.options.precision = 6;
+                        
+                        // Custom format function for standard LiteGraph drawing
                         knobWidget.options.format = function(value) {
                             if (value === undefined || value === null || isNaN(value)) return "";
-                            // Round to max 6 decimals and convert to string to strip trailing zeros
+                            console.log(`[Krea2Tuner] Formatting value: ${value}`);
+                            // Round to max 6 decimals and strip trailing zeros
                             return Number(parseFloat(value.toFixed(6))).toString();
                         };
                     }
