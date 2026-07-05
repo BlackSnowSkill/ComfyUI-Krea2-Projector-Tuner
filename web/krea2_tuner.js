@@ -1,19 +1,6 @@
 import { app } from "../../scripts/app.js";
 
-console.log("[Krea2Tuner] Loading frontend extension with dynamic precision...");
-
-function updatePrecision(widget) {
-    if (widget && widget.value !== undefined && widget.options) {
-        const val = widget.value;
-        const parts = val.toString().split('.');
-        if (parts.length < 2) {
-            widget.options.precision = 1;
-        } else {
-            const decs = parts[1].replace(/0+$/, '');
-            widget.options.precision = Math.min(6, Math.max(1, decs.length));
-        }
-    }
-}
+console.log("[Krea2Tuner] Loading frontend extension with Save Preset button...");
 
 function initNode(node) {
     if (node.comfyClass !== "Krea2ProjectorTuner") return;
@@ -23,22 +10,66 @@ function initNode(node) {
 
     let isUpdating = false;
 
-    // Set initial precision dynamically for all knobs
+    // Configure all knob widgets to have step 0.01 (like LoRA Loader)
+    // but keep round at 0.000001 to prevent rounding of high-precision inputs.
     for (let i = 0; i < 12; i++) {
         const knobWidget = node.widgets.find(w => w.name === `knob_${i}`);
         if (knobWidget) {
             if (!knobWidget.options) knobWidget.options = {};
-            // Set step to 0.1 for dragging as requested
-            knobWidget.options.step = 0.1;
-            knobWidget.options.round = 0.000001; // Allow high precision manual input
-            updatePrecision(knobWidget);
-
-            // Wrap format as additional fallback
-            knobWidget.options.format = function(value) {
-                if (value === undefined || value === null || isNaN(value)) return "";
-                return Number(parseFloat(value.toFixed(6))).toString();
-            };
+            knobWidget.options.step = 0.01;
+            knobWidget.options.round = 0.000001; 
+            // Clear custom precision and format to let ComfyUI render it standard
+            delete knobWidget.options.precision;
+            delete knobWidget.options.format;
         }
+    }
+
+    // Add a button widget to save current custom configuration as a preset
+    let saveBtn = node.widgets.find(w => w.name === "Save Preset (BSS)");
+    if (!saveBtn) {
+        node.addWidget("button", "Save Preset (BSS)", "save_preset", () => {
+            const name = prompt("Enter a name for the new preset:");
+            if (!name || name.trim() === "") return;
+            
+            // Collect the current values of knob_0 to knob_11
+            const knobs = [];
+            for (let i = 0; i < 12; i++) {
+                const knobWidget = node.widgets.find(w => w.name === `knob_${i}`);
+                knobs.push(knobWidget ? parseFloat(knobWidget.value) : 0.0);
+            }
+            
+            // Send the new preset to the backend API
+            fetch('/krea2_tuner/save_preset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim(), knobs: knobs })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    alert(`Preset "${name}" saved successfully!`);
+                    // Fetch the updated presets list from the backend
+                    fetch('/krea2_tuner/presets')
+                        .then(r2 => r2.json())
+                        .then(presets => {
+                            if (presetWidget) {
+                                // Update options and value dynamically without reload
+                                presetWidget.options.values = Object.keys(presets);
+                                presetWidget.value = name.trim();
+                                if (presetWidget.callback) {
+                                    presetWidget.callback(name.trim());
+                                }
+                            }
+                        });
+                } else {
+                    alert("Error saving preset: " + res.error);
+                }
+            })
+            .catch(err => {
+                alert("Error sending request: " + err);
+            });
+        });
+        node.setSize(node.size);
     }
 
     // Override preset selection callback
@@ -59,13 +90,12 @@ function initNode(node) {
                             const knobWidget = node.widgets.find(w => w.name === `knob_${i}`);
                             if (knobWidget) {
                                 knobWidget.value = vals[i];
-                                updatePrecision(knobWidget);
                                 if (knobWidget.callback) {
                                     knobWidget.callback(vals[i]);
                                 }
                             }
                         }
-                        node.setSize(node.size); // Redraw node
+                        node.setSize(node.size);
                     }
                     isUpdating = false;
                 })
@@ -76,7 +106,7 @@ function initNode(node) {
         }
     };
 
-    // Override manual knob adjustment callbacks to adjust precision dynamically
+    // Override manual knob adjustment callbacks to switch preset dropdown to "custom"
     for (let i = 0; i < 12; i++) {
         const knobWidget = node.widgets.find(w => w.name === `knob_${i}`);
         if (knobWidget) {
@@ -85,7 +115,6 @@ function initNode(node) {
                 if (originalKnobCallback) {
                     originalKnobCallback.apply(this, arguments);
                 }
-                updatePrecision(knobWidget);
                 if (!isUpdating && presetWidget.value !== "custom") {
                     presetWidget.value = "custom";
                 }

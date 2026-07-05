@@ -105,7 +105,7 @@ def load_all_presets():
                     logger.error(f"[Krea2Tuner] Failed to load preset file {f}: {e}")
     return loaded
 
-# Register API Route for frontend preset value retrieval
+# Register API Routes for frontend preset value retrieval and saving
 if hasattr(PromptServer, "instance") and PromptServer.instance is not None:
     @PromptServer.instance.routes.get("/krea2_tuner/presets")
     async def get_presets_api(request):
@@ -114,6 +114,35 @@ if hasattr(PromptServer, "instance") and PromptServer.instance is not None:
         for k, v in current_presets.items():
             serializable[k] = v if v is not None else [0.0] * 12
         return web.json_response(serializable)
+
+    @PromptServer.instance.routes.post("/krea2_tuner/save_preset")
+    async def save_preset_api(request):
+        try:
+            data = await request.json()
+            name = data.get("name")
+            knobs = data.get("knobs")
+            
+            if not name or not isinstance(knobs, list) or len(knobs) != 12:
+                return web.json_response({"success": False, "error": "Invalid data"}, status=400)
+                
+            safe_name = "".join([c for c in name if c.isalnum() or c in " _-"]).strip()
+            if not safe_name:
+                return web.json_response({"success": False, "error": "Invalid name"}, status=400)
+                
+            filename = safe_name.lower().replace(" ", "_") + ".json"
+            path = os.path.join(presets_dir, filename)
+            
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "name": name,
+                    "knobs": [float(x) for x in knobs]
+                }, f, indent=4)
+                
+            logger.info(f"[Krea2Tuner] Saved preset: {name} to {path}")
+            return web.json_response({"success": True, "name": name})
+        except Exception as e:
+            logger.error(f"[Krea2Tuner] Error saving preset: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
 
 
 class Krea2ProjectorTuner:
@@ -132,19 +161,19 @@ class Krea2ProjectorTuner:
             "required": {
                 "model": ("MODEL",),
                 "preset": (preset_list, {"default": default_preset}),
-                # Precision step set to 0.1 as requested (users can still type high precision values)
-                "knob_0": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_1": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_2": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_3": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_4": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_5": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_6": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_7": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_8": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_9": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_10": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
-                "knob_11": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                # Precision step set to 0.01 as requested (users can still type high precision values)
+                "knob_0": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_1": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_2": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_3": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_4": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_5": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_6": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_7": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_8": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_9": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_10": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
+                "knob_11": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
             }
         }
     
