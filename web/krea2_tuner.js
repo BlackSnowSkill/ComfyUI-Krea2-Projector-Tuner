@@ -9,6 +9,8 @@ function initNode(node) {
     if (!presetWidget) return;
 
     let isUpdating = false;
+    let isProgrammaticCustom = false; // Flag to prevent zero-out reset of knobs when dropdown changes to "custom" programmatically
+    let currentPresetValues = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; // Track loaded preset values to filter false mouse events
 
     // Configure all knob widgets to have step 0.01 (like LoRA Loader)
     // but keep round at 0.000001 to prevent rounding of high-precision inputs.
@@ -18,7 +20,6 @@ function initNode(node) {
             if (!knobWidget.options) knobWidget.options = {};
             knobWidget.options.step = 0.01;
             knobWidget.options.round = 0.000001; 
-            // Clear custom precision and format to let ComfyUI render it standard
             delete knobWidget.options.precision;
             delete knobWidget.options.format;
         }
@@ -99,10 +100,12 @@ function initNode(node) {
                         .then(presets => {
                             if (presetWidget) {
                                 presetWidget.options.values = Object.keys(presets);
+                                isProgrammaticCustom = true; // prevent zero-out
                                 presetWidget.value = "custom";
                                 if (presetWidget.callback) {
                                     presetWidget.callback("custom");
                                 }
+                                isProgrammaticCustom = false;
                             }
                         });
                 } else {
@@ -142,13 +145,36 @@ function initNode(node) {
             originalCallback.apply(this, arguments);
         }
         
-        if (value !== "custom" && !isUpdating) {
+        if (value === "custom") {
+            // Zero out sliders ONLY if selected manually by the user (not programmatically)
+            if (!isProgrammaticCustom && !isUpdating) {
+                isUpdating = true;
+                currentPresetValues = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+                for (let i = 0; i < 12; i++) {
+                    const knobWidget = node.widgets.find(w => w.name === `knob_${i}`);
+                    if (knobWidget) {
+                        knobWidget.value = 0.0;
+                        if (knobWidget.callback) {
+                            knobWidget.callback(0.0);
+                        }
+                    }
+                }
+                isUpdating = false;
+                if (node.graph) {
+                    node.setDirtyCanvas(true, true);
+                }
+            }
+            return;
+        }
+
+        if (!isUpdating) {
             isUpdating = true;
             fetch('/krea2_tuner/presets')
                 .then(r => r.json())
                 .then(presets => {
                     const vals = presets[value];
                     if (vals && vals.length === 12) {
+                        currentPresetValues = [...vals]; // update tracked preset values
                         for (let i = 0; i < 12; i++) {
                             const knobWidget = node.widgets.find(w => w.name === `knob_${i}`);
                             if (knobWidget) {
@@ -158,7 +184,9 @@ function initNode(node) {
                                 }
                             }
                         }
-                        node.setSize(node.size);
+                        if (node.graph) {
+                            node.setDirtyCanvas(true, true); // force instant redraw of the sliders
+                        }
                     }
                     isUpdating = false;
                 })
@@ -178,8 +206,19 @@ function initNode(node) {
                 if (originalKnobCallback) {
                     originalKnobCallback.apply(this, arguments);
                 }
-                if (!isUpdating && presetWidget.value !== "custom") {
-                    presetWidget.value = "custom";
+                if (!isUpdating) {
+                    // Check if value is genuinely different from the loaded preset value
+                    // to prevent spurious mouseover triggers from resetting the active preset
+                    const presetVal = currentPresetValues[i];
+                    if (Math.abs(val - presetVal) > 1e-6) {
+                        if (presetWidget.value !== "custom") {
+                            isProgrammaticCustom = true; // prevent dynamic zero-out
+                            presetWidget.value = "custom";
+                            isProgrammaticCustom = false;
+                        }
+                        // If we modified values manually, the current preset state is no longer tracked
+                        currentPresetValues[i] = val;
+                    }
                 }
             };
         }
