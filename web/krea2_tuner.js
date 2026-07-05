@@ -10,6 +10,16 @@ app.registerExtension({
                 // Keep track of whether we are programmatically updating widgets to avoid loops
                 let isUpdating = false;
 
+                // Force high display precision (6 decimals) for all knob widgets,
+                // while keeping the step set in Python (0.1) for dragging.
+                for (let i = 0; i < 12; i++) {
+                    const knobWidget = node.widgets.find(w => w.name === `knob_${i}`);
+                    if (knobWidget) {
+                        if (!knobWidget.options) knobWidget.options = {};
+                        knobWidget.options.precision = 6;
+                    }
+                }
+
                 const originalCallback = presetWidget.callback;
                 presetWidget.callback = function (value) {
                     if (originalCallback) {
