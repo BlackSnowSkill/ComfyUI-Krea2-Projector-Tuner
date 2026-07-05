@@ -144,6 +144,43 @@ if hasattr(PromptServer, "instance") and PromptServer.instance is not None:
             logger.error(f"[Krea2Tuner] Error saving preset: {e}")
             return web.json_response({"success": False, "error": str(e)}, status=500)
 
+    @PromptServer.instance.routes.post("/krea2_tuner/delete_preset")
+    async def delete_preset_api(request):
+        try:
+            data = await request.json()
+            name = data.get("name")
+            if not name or name == "custom":
+                return web.json_response({"success": False, "error": "Invalid preset name"}, status=400)
+                
+            safe_name = "".join([c for c in name if c.isalnum() or c in " _-"]).strip()
+            if not safe_name:
+                return web.json_response({"success": False, "error": "Invalid name"}, status=400)
+                
+            filename = safe_name.lower().replace(" ", "_") + ".json"
+            path = os.path.join(presets_dir, filename)
+            
+            if os.path.exists(path):
+                os.remove(path)
+                logger.info(f"[Krea2Tuner] Deleted preset file: {path}")
+                return web.json_response({"success": True})
+            else:
+                return web.json_response({"success": False, "error": "Preset file not found"}, status=404)
+        except Exception as e:
+            logger.error(f"[Krea2Tuner] Error deleting preset: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+
+    @PromptServer.instance.routes.post("/krea2_tuner/open_folder")
+    async def open_folder_api(request):
+        try:
+            if os.path.exists(presets_dir):
+                os.startfile(presets_dir)
+                return web.json_response({"success": True})
+            else:
+                return web.json_response({"success": False, "error": "Presets folder not found"}, status=404)
+        except Exception as e:
+            logger.error(f"[Krea2Tuner] Error opening folder: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+
 
 class Krea2ProjectorTuner:
     """

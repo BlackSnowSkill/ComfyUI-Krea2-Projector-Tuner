@@ -69,6 +69,69 @@ function initNode(node) {
                 alert("Error sending request: " + err);
             });
         });
+    }
+
+    // Add a button widget to delete the currently selected preset
+    let deleteBtn = node.widgets.find(w => w.name === "Delete Selected Preset (BSS)");
+    if (!deleteBtn) {
+        node.addWidget("button", "Delete Selected Preset (BSS)", "delete_preset", () => {
+            const currentPreset = presetWidget.value;
+            if (currentPreset === "custom") {
+                alert("Cannot delete the 'custom' preset option.");
+                return;
+            }
+            if (!confirm(`Are you sure you want to delete the preset "${currentPreset}"? This will permanently remove its JSON file.`)) {
+                return;
+            }
+            
+            fetch('/krea2_tuner/delete_preset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: currentPreset })
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    alert(`Preset "${currentPreset}" deleted successfully!`);
+                    // Refresh preset choices
+                    fetch('/krea2_tuner/presets')
+                        .then(r2 => r2.json())
+                        .then(presets => {
+                            if (presetWidget) {
+                                presetWidget.options.values = Object.keys(presets);
+                                presetWidget.value = "custom";
+                                if (presetWidget.callback) {
+                                    presetWidget.callback("custom");
+                                }
+                            }
+                        });
+                } else {
+                    alert("Error deleting preset: " + res.error);
+                }
+            })
+            .catch(err => {
+                alert("Error sending request: " + err);
+            });
+        });
+    }
+
+    // Add a button widget to open the presets folder in OS file explorer
+    let openFolderBtn = node.widgets.find(w => w.name === "Open Presets Folder (BSS)");
+    if (!openFolderBtn) {
+        node.addWidget("button", "Open Presets Folder (BSS)", "open_folder", () => {
+            fetch('/krea2_tuner/open_folder', {
+                method: 'POST'
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) {
+                    alert("Error opening folder: " + res.error);
+                }
+            })
+            .catch(err => {
+                alert("Error sending request: " + err);
+            });
+        });
         node.setSize(node.size);
     }
 
