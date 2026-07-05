@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 *.zip
 .DS_Store
+presets/.initialized

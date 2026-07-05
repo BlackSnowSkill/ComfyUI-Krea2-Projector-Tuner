@@ -35,7 +35,10 @@ if not os.path.exists(template_path):
 
 # Built-in presets
 BUILTIN_PRESETS = {
-    "custom": None,
+    "custom": None
+}
+
+DEFAULT_PRESETS = {
     "Strongx3_wl7": [
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
         -0.700000,           # Knob 7 (minor decensor)
@@ -60,6 +63,27 @@ BUILTIN_PRESETS = {
         0.0
     ]
 }
+
+# Auto-initialize presets folder with default preset files if not initialized yet
+initialized_marker = os.path.join(presets_dir, ".initialized")
+if not os.path.exists(initialized_marker):
+    try:
+        # Create default preset files
+        for name, knobs in DEFAULT_PRESETS.items():
+            filename = name.lower().replace(" ", "_") + ".json"
+            preset_path = os.path.join(presets_dir, filename)
+            with open(preset_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "name": name,
+                    "knobs": knobs
+                }, f, indent=4)
+        
+        # Create initialized marker
+        with open(initialized_marker, "w", encoding="utf-8") as f:
+            f.write("initialized")
+        logger.info("[Krea2Tuner] Successfully initialized presets folder with default files.")
+    except Exception as e:
+        logger.error(f"[Krea2Tuner] Failed to initialize default presets: {e}")
 
 def load_all_presets():
     """Loads built-in and community presets from presets/ directory."""
@@ -101,23 +125,25 @@ class Krea2ProjectorTuner:
     def INPUT_TYPES(s):
         # Dynamically fetch presets list at startup
         presets_dict = load_all_presets()
+        preset_list = list(presets_dict.keys())
+        default_preset = "Strongx3_wl7" if "Strongx3_wl7" in preset_list else "custom"
         return {
             "required": {
                 "model": ("MODEL",),
-                "preset": (list(presets_dict.keys()), {"default": "Strongx3_wl7"}),
-                # Precision step set to 0.000001 for extremely fine tuning
-                "knob_0": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_1": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_2": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_3": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_4": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_5": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_6": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_7": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_8": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_9": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_10": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
-                "knob_11": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.000001}),
+                "preset": (preset_list, {"default": default_preset}),
+                # Precision step set to 0.1 as requested (users can still type high precision values)
+                "knob_0": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_1": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_2": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_3": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_4": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_5": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_6": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_7": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_8": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_9": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_10": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
+                "knob_11": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.1}),
             }
         }
     
@@ -141,7 +167,7 @@ class Krea2ProjectorTuner:
 
         # 3. Select values from preset or sliders
         if preset != "custom":
-            diff_list = presets_dict.get(preset, BUILTIN_PRESETS["Strongx3_wl7"])
+            diff_list = presets_dict.get(preset, DEFAULT_PRESETS["Strongx3_wl7"])
             logger.info(f"[Krea2Tuner] Applying preset: {preset}")
         else:
             diff_list = [
