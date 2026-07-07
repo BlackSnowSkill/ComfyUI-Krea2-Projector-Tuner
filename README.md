@@ -52,15 +52,16 @@ Registered under the `BSS/Krea2` category.
 * **Inputs:**
   * **`model`:** The loaded Krea2 model.
   * **`preset`:** Select from the loaded JSON files in `presets/` folder, or `custom` (enables manual sliders).
+  * **`multiplier`:** Overall weight multiplier (-10.0 to +10.0) with `0.01` step increments (default is `1.0`). Multiplies all knob values, making it quick and easy to scale the total patch strength (e.g., 3x or 5x).
   * **`knob_0` to `knob_11`:** Fine-tune multipliers (-5.0 to +5.0) with `0.01` step increments.
 
 ---
 
 ## 🎛️ On-Node Action Buttons
 
-* **`Save Preset (BSS)`:** Prompt-saves your current manual slider values as a new JSON file in `presets/` folder. The dropdown list refreshes instantly on the screen.
-* **`Delete Selected Preset (BSS)`:** Deletes the currently selected preset file from disk and switches the dropdown back to `custom`.
-* **`Open Presets Folder (BSS)`:** Instantly opens the presets directory in your OS file explorer.
+* **`Save Preset`:** Prompt-saves your current manual slider values as a new JSON file in `presets/` folder. The dropdown list refreshes instantly on the screen.
+* **`Delete Selected Preset`:** Deletes the currently selected preset file from disk and switches the dropdown back to `custom`.
+* **`Open Presets Folder`:** Instantly opens the presets directory in your OS file explorer.
 
 ---
 

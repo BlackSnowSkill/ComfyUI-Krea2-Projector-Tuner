@@ -26,9 +26,9 @@ function initNode(node) {
     }
 
     // Add a button widget to save current custom configuration as a preset
-    let saveBtn = node.widgets.find(w => w.name === "Save Preset (BSS)");
+    let saveBtn = node.widgets.find(w => w.name === "Save Preset");
     if (!saveBtn) {
-        node.addWidget("button", "Save Preset (BSS)", "save_preset", () => {
+        node.addWidget("button", "Save Preset", "save_preset", () => {
             const name = prompt("Enter a name for the new preset:");
             if (!name || name.trim() === "") return;
             
@@ -73,9 +73,9 @@ function initNode(node) {
     }
 
     // Add a button widget to delete the currently selected preset
-    let deleteBtn = node.widgets.find(w => w.name === "Delete Selected Preset (BSS)");
+    let deleteBtn = node.widgets.find(w => w.name === "Delete Selected Preset");
     if (!deleteBtn) {
-        node.addWidget("button", "Delete Selected Preset (BSS)", "delete_preset", () => {
+        node.addWidget("button", "Delete Selected Preset", "delete_preset", () => {
             const currentPreset = presetWidget.value;
             if (currentPreset === "custom") {
                 alert("Cannot delete the 'custom' preset option.");
@@ -119,9 +119,9 @@ function initNode(node) {
     }
 
     // Add a button widget to open the presets folder in OS file explorer
-    let openFolderBtn = node.widgets.find(w => w.name === "Open Presets Folder (BSS)");
+    let openFolderBtn = node.widgets.find(w => w.name === "Open Presets Folder");
     if (!openFolderBtn) {
-        node.addWidget("button", "Open Presets Folder (BSS)", "open_folder", () => {
+        node.addWidget("button", "Open Presets Folder", "open_folder", () => {
             fetch('/krea2_tuner/open_folder', {
                 method: 'POST'
             })

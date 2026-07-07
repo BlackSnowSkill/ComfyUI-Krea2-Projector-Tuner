@@ -198,6 +198,7 @@ class Krea2ProjectorTuner:
             "required": {
                 "model": ("MODEL",),
                 "preset": (preset_list, {"default": default_preset}),
+                "multiplier": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                 # Precision step set to 0.01 as requested (users can still type high precision values)
                 "knob_0": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
                 "knob_1": ("FLOAT", {"default": 0.0, "min": -5.0, "max": 5.0, "step": 0.01}),
@@ -223,6 +224,7 @@ class Krea2ProjectorTuner:
         self,
         model,
         preset,
+        multiplier,
         knob_0, knob_1, knob_2, knob_3, knob_4, knob_5,
         knob_6, knob_7, knob_8, knob_9, knob_10, knob_11
     ):
@@ -242,6 +244,10 @@ class Krea2ProjectorTuner:
                 knob_6, knob_7, knob_8, knob_9, knob_10, knob_11
             ]
             logger.info(f"[Krea2Tuner] Applying custom manual slider values: {diff_list}")
+
+        # Apply overall multiplier to weights
+        diff_list = [val * multiplier for val in diff_list]
+        logger.info(f"[Krea2Tuner] Applied multiplier {multiplier}. Final weights: {diff_list}")
 
         # 4. Locate the parameter key inside the model's state dict
         sd = m.model.state_dict()
