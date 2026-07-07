@@ -268,8 +268,9 @@ class Krea2ProjectorTuner:
         dtype = param.dtype
         shape = param.shape
 
-        # 5. Construct the difference tensor matching the target parameter shape
-        diff_tensor = torch.tensor(diff_list, device=device, dtype=dtype)
+        # 5. Construct the difference tensor matching the target parameter shape on CPU
+        # (keeping patches on CPU is standard for ComfyUI and prevents VRAM lock / dynamic VRAM crashes)
+        diff_tensor = torch.tensor(diff_list, device="cpu", dtype=dtype)
         
         # Reshape to match the parameter's shape (usually [1, 12] or [12])
         try:
